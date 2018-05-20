@@ -1,0 +1,249 @@
+---
+title: "The Dynamic-p Technique with lavaan"
+output: html_notebook
+---
+
+
+
+```{r, warning = F, message = F}
+library(readxl)
+library(tidyverse)
+d <- read_excel("Lindsey.xlsx")
+
+glimpse(d)
+```
+
+```{r}
+(
+  d <-
+  d %>% 
+  mutate(day = 1:n()-1) %>% 
+  select(day, everything())
+  )
+```
+
+If you wanted to get a sense of the distributions of the items, a histogram might be handy.
+
+```{r}
+d %>% 
+  select(A3:A17) %>% 
+  gather(item, rating) %>% 
+  
+  ggplot(aes(x = rating)) +
+  geom_histogram(binwidth = 1, fill = "chartreuse", color = "grey92", size = 1/5) +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~item)
+```
+
+With the [psych package](https://cran.r-project.org/web/packages/psych/index.html), we can use the `describe()` function to see typical descriptive statistics.
+
+```{r}
+library(psych)
+
+d %>% 
+  select(A3:A17) %>% 
+  describe()
+```  
+
+
+
+
+```{r}
+d <-
+  d %>% 
+  select(everything(), -A3, -A8)
+```
+
+## P-technique CFA
+
+```{r, message = F, warning = F}
+library(lavaan)
+```
+
+### 0-lag.
+
+```{r}
+CFA_0_lag <- '
+H =~ NA*A10 + A13 + A14 + A16 + A17
+
+# Standardize the variance
+H ~~ 1*H
+'
+```
+
+```{r}
+fit.CFA_0_lag <- 
+  cfa(CFA_0_lag, 
+      data = d,
+      estimator = "MLR",
+      missing = "ML")
+```
+
+```{r}
+summary(fit.CFA_0_lag, 
+        fit.measures = T)
+```
+
+### 1-lag.
+
+```{r}
+tibble(x = 1:3, 
+       y = 10:12) %>% 
+  mutate(x_1 = lag(x))
+```
+
+```{r}
+tail(d)
+
+d_lagged <-
+  d %>% 
+  add_row(., day = 103, Date = "2016-05-11 00:00:00", 
+          Mon = 0, Tues = 0, Wed = 1, Thur = 0, Fri = 0, Sat = 0, Sun = 0, 
+          Meds = NA, 
+          A10 = NA, A13 = NA, A14 = NA, A16 = NA, A17 = NA)
+```
+
+```{r}
+d_lagged <-
+  d_lagged %>% 
+  mutate(Meds_1 = lag(Meds),
+         A10_1  = lag(A10),
+         A13_1  = lag(A13),
+         A14_1  = lag(A14),
+         A16_1  = lag(A16),
+         A17_1  = lag(A17))
+```
+
+
+
+
+```{r}
+CFA_1_lag <- '
+# Loadings
+H0 =~ l1*A10 +   l2*A13 +   l3*A14 +   l4*A16 +   l5*A17
+H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
+
+# LV variances
+H0 ~~ 1*H0
+H1 ~~ NA*H1 # Because of the structural model, the resitual variance for H1 is freely estimated
+
+# residual variances
+A10 ~~ rv1*A10
+A13 ~~ rv2*A13
+A14 ~~ rv3*A14
+A16 ~~ rv4*A16
+A17 ~~ rv5*A17
+
+A10_1 ~~ rv1*A10_1
+A13_1 ~~ rv2*A13_1
+A14_1 ~~ rv3*A14_1
+A16_1 ~~ rv4*A16_1
+A17_1 ~~ rv5*A17_1
+
+# item intercepts
+A10 ~ i1*A10
+A13 ~ i2*A13
+A14 ~ i3*A14
+A16 ~ i4*A16
+A17 ~ i5*A17
+
+A10_1 ~ i1*A10_1
+A13_1 ~ i2*A13_1
+A14_1 ~ i3*A14_1
+A16_1 ~ i4*A16_1
+A17_1 ~ i5*A17_1
+
+# cross-lag residual covariances
+A10 ~~ A10_1
+A13 ~~ A13_1
+A14 ~~ A14_1
+A16 ~~ A16_1
+A17 ~~ A17_1
+
+# Structural model
+H1 ~ H0
+'
+```
+
+```{r}
+fit.CFA_1_lag <- 
+  cfa(CFA_1_lag, 
+      data = d_lagged,
+      estimator = "MLR",
+      missing = "ML",
+      std.lv = T)
+```
+
+```{r}
+summary(fit.CFA_1_lag, 
+        fit.measures = T)
+```
+
+## Dynamic-p SEM
+
+```{r}
+SEM_1_lag <- '
+# Loadings
+H0 =~ l1*A10 +   l2*A13 +   l3*A14 +   l4*A16 +   l5*A17
+H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
+
+# LV variances
+H0 ~~ 1*H0
+H1 ~~ NA*H1 # Because of the structural model, the resitual variance for H1 is freely estimated
+
+# residual variances
+A10 ~~ rv1*A10
+A13 ~~ rv2*A13
+A14 ~~ rv3*A14
+A16 ~~ rv4*A16
+A17 ~~ rv5*A17
+
+A10_1 ~~ rv1*A10_1
+A13_1 ~~ rv2*A13_1
+A14_1 ~~ rv3*A14_1
+A16_1 ~~ rv4*A16_1
+A17_1 ~~ rv5*A17_1
+
+# item intercepts
+A10 ~ i1*A10
+A13 ~ i2*A13
+A14 ~ i3*A14
+A16 ~ i4*A16
+A17 ~ i5*A17
+
+A10_1 ~ i1*A10_1
+A13_1 ~ i2*A13_1
+A14_1 ~ i3*A14_1
+A16_1 ~ i4*A16_1
+A17_1 ~ i5*A17_1
+
+# cross-lag residual covariances
+A10 ~~ A10_1
+A13 ~~ A13_1
+A14 ~~ A14_1
+A16 ~~ A16_1
+A17 ~~ A17_1
+
+# Structural model
+H1 ~ H0 + Meds_1
+'
+```
+
+```{r}
+fit.SEM_1_lag <- 
+  cfa(SEM_1_lag, 
+      data = d_lagged,
+      estimator = "MLR",
+      missing = "ML",
+      std.lv = T)
+```
+
+```{r}
+summary(fit.SEM_1_lag, 
+        fit.measures = T)
+```
+
+
+
+
+w
