@@ -1,28 +1,27 @@
----
-title: "The Dynamic-p Technique with lavaan"
-output: html_notebook
----
+The Dynamic-p Technique with lavaan
+======================================================
 
-
+First we'll load the data and open our first two packages.
 
 ```{r, warning = F, message = F}
 library(readxl)
 library(tidyverse)
+
 d <- read_excel("Lindsey.xlsx")
 
 glimpse(d)
 ```
 
+We'll want to augment the data, `d`, slightly by adding a numeric `day` index.
+
 ```{r}
-(
-  d <-
+d <-
   d %>% 
   mutate(day = 1:n()-1) %>% 
   select(day, everything())
-  )
 ```
 
-If you wanted to get a sense of the distributions of the items, a histogram might be handy.
+If you wanted to get a sense of the distributions of the ADHD items, histograms might be handy.
 
 ```{r}
 d %>% 
@@ -35,9 +34,9 @@ d %>%
   facet_wrap(~item)
 ```
 
-With the [psych package](https://cran.r-project.org/web/packages/psych/index.html), we can use the `describe()` function to see typical descriptive statistics.
+Happily, their distributions look reasonable. With the [psych package](https://cran.r-project.org/web/packages/psych/index.html), we can use the `describe()` function to get the typical descriptive statistics.
 
-```{r}
+```{r, warning = F, message = F}
 library(psych)
 
 d %>% 
@@ -45,8 +44,7 @@ d %>%
   describe()
 ```  
 
-
-
+Recall that the items in the ASRS correspond to the 18 criterion A symptoms, with the first nine classified as Inattentive and the last nine as hyperactive/impulsive. For the sake of this example, we'll focus on Lindsey's hyperactive/impulsive symptoms, ASRS items 10, 13, 14, 16, and 17. The following code drops the other two, items 3 and 8.
 
 ```{r}
 d <-
@@ -55,6 +53,8 @@ d <-
 ```
 
 ## P-technique CFA
+
+Here we open our primary statistical package, [lavaan](https://cran.r-project.org/web/packages/lavaan/index.html).
 
 ```{r, message = F, warning = F}
 library(lavaan)
@@ -86,11 +86,7 @@ summary(fit.CFA_0_lag,
 
 ### 1-lag.
 
-```{r}
-tibble(x = 1:3, 
-       y = 10:12) %>% 
-  mutate(x_1 = lag(x))
-```
+Before we proceed to fit a dynamic-p CFA, we'll need to lag our data file. First, we'll add a row to the end of the data. Because this row corresponds to `Date = "2016-05-11"`, a day for which we don't have any information other than it was a Wednesday, we'll insert NAs into most of the columns.
 
 ```{r}
 tail(d)
@@ -103,8 +99,11 @@ d_lagged <-
           A10 = NA, A13 = NA, A14 = NA, A16 = NA, A17 = NA)
 ```
 
+With the `lag()` function, we'll add lagged values for our `Meds` dummy and our ASRS items. For each of the lagged columns, we'll add the suffix `_1` to help differentiate them from the original columns.
+
 ```{r}
-d_lagged <-
+(
+  d_lagged <-
   d_lagged %>% 
   mutate(Meds_1 = lag(Meds),
          A10_1  = lag(A10),
@@ -112,10 +111,10 @@ d_lagged <-
          A14_1  = lag(A14),
          A16_1  = lag(A16),
          A17_1  = lag(A17))
+  )
 ```
 
-
-
+Now we have our lagged data, `d_lagged`, we are ready to specify and fit the 1-lag CFA model.
 
 ```{r}
 CFA_1_lag <- '
@@ -181,6 +180,8 @@ summary(fit.CFA_1_lag,
 
 ## Dynamic-p SEM
 
+Finally, we can use `Meds_1` to predict lag-1 ADHD values, `H1`, while still controlling for the previous day's ADHD values (i.e., `H1 ~ H0`).
+
 ```{r}
 SEM_1_lag <- '
 # Loadings
@@ -243,7 +244,4 @@ summary(fit.SEM_1_lag,
         fit.measures = T)
 ```
 
-
-
-
-w
+Recall that the latent variables are in a standardized metric. Because `Meds_1` is a dummy variable, this puts it's coefficient in a Cohen's $d$ like metric.
