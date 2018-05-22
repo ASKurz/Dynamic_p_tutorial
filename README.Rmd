@@ -1,6 +1,10 @@
 The Dynamic-p Technique with lavaan
 ======================================================
 
+```{r set-options, echo = FALSE, cache = FALSE}
+options(width = 100)
+```
+
 First we'll load the data and open our first two packages.
 
 ```{r, warning = F, message = F}
@@ -12,7 +16,9 @@ d <- read_excel("Lindsey.xlsx")
 glimpse(d)
 ```
 
-We'll want to augment the data, `d`, slightly by adding a numeric `day` index.
+Note how the data are in the long format. That is, although we have one participant, "Lindsey", her data are presented in 103 rows, each corresponding to a different calendar day. 
+
+The variable for calendar days, `Date`, is descriptively useful, but cumbersome for formal statistical analysis. Here we'll want to augment the data slightly by adding a numeric `day` index, ranging from 0 to 102.
 
 ```{r}
 d <-
@@ -21,9 +27,11 @@ d <-
   select(day, everything())
 ```
 
+## Descriptive statistics
+
 If you wanted to get a sense of the distributions of the ADHD items, histograms might be handy.
 
-```{r}
+```{r, fig.width = 8, fig.height = 3.5}
 d %>% 
   select(A3:A17) %>% 
   gather(item, rating) %>% 
@@ -31,10 +39,35 @@ d %>%
   ggplot(aes(x = rating)) +
   geom_histogram(binwidth = 1, fill = "chartreuse", color = "grey92", size = 1/5) +
   theme(panel.grid = element_blank()) +
-  facet_wrap(~item)
+  facet_wrap(~item, ncol = 4)
 ```
 
-Happily, their distributions look reasonable. With the [psych package](https://cran.r-project.org/web/packages/psych/index.html), we can use the `describe()` function to get the typical descriptive statistics.
+Happily, their distributions look reasonable. You can get a sense of their values over time with a sequentially-color-coded tile plot.
+
+```{r, fig.width = 10, fig.height = 2.5, warning = F, message = F}
+library(viridis)
+
+d %>% 
+  select(Date, A3:A17) %>% 
+  gather(item, rating, -Date) %>%
+  mutate(rating = factor(rating, levels = c(1:5)),
+         item = factor(item, levels = c("A3", "A8", "A10", "A13", "A14", "A16", "A17"))) %>% 
+  
+  ggplot(aes(x = Date, y = item)) +
+  geom_raster(aes(fill = rating)) +
+  scale_fill_viridis(NULL, discrete = TRUE, option = "D",
+                     guide = guide_legend(direction = "horizontal",
+                                          nrow = 1)) +
+  scale_x_datetime(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(x = NULL, y = NULL) +
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_text(hjust = 0),
+        axis.ticks.y = element_blank(),
+        legend.position = "top")
+```
+
+And with the [psych package](https://cran.r-project.org/web/packages/psych/index.html), we can use the `describe()` function to get the typical descriptive statistics.
 
 ```{r, warning = F, message = F}
 library(psych)
@@ -61,6 +94,8 @@ library(lavaan)
 ```
 
 ### 0-lag.
+
+The simplest starting place is a p-technique factor analysis. Using this approach, data 
 
 ```{r}
 CFA_0_lag <- '
