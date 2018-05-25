@@ -87,7 +87,7 @@ d <-
 
 ## P-technique CFA
 
-Here we open our primary statistical package, [lavaan](https://cran.r-project.org/web/packages/lavaan/index.html).
+Here we open our primary statistical package, [lavaan](https://cran.r-project.org/web/packages/lavaan/index.html), which you might learn more about [here](https://dornsife.usc.edu/assets/sites/210/docs/GC3/lavaan_tutorial.pdf) or [here](http://lavaan.ugent.be/tutorial/index.html).
 
 ```{r, message = F, warning = F}
 library(lavaan)
@@ -95,7 +95,7 @@ library(lavaan)
 
 ### 0-lag.
 
-The simplest starting place is a p-technique factor analysis. Using this approach, data 
+The simplest starting place is a p-technique factor analysis. Using this approach, the model syntax looks much like that of a typical group-level CFA. 
 
 ```{r}
 CFA_0_lag <- '
@@ -106,6 +106,8 @@ H ~~ 1*H
 '
 ```
 
+Here we fit the model.
+
 ```{r}
 fit.CFA_0_lag <- 
   cfa(CFA_0_lag, 
@@ -114,9 +116,12 @@ fit.CFA_0_lag <-
       missing = "ML")
 ```
 
+The summary, including the typical fit indices and 95% CIs for good measure:
+
 ```{r}
 summary(fit.CFA_0_lag, 
-        fit.measures = T)
+        fit.measures = T,
+        ci = T)
 ```
 
 ### 1-lag.
@@ -151,9 +156,19 @@ With the `lag()` function, we'll add lagged values for our `Meds` dummy and our 
 
 Now we have our lagged data, `d_lagged`, we are ready to specify and fit the 1-lag CFA model.
 
+Because of the way the data are copied to create a lagged dataset, model estimation involving multiple lags entails a number of specific constraints because the information across the lags is essentially equivalent (Little, 2013). The first few of those constraints concern factorial invariance. Typical group-level longitudinal CFAs require that analysts assess the extent to which the factors are invariant across time (for detailed discussions, see Brown, 2015; Little, 2013; Widaman, Ferrer, & Conger, 2010). Factorial invariance across time suggests the variables of interest were reliably measured across time and that the constructs themselves were stable. For dynamic p-technique models, we expect "strict factorial invariance" (Little, 2013), which entails that the item loadings, item intercepts, and residual variances are equivalent across lags (herein termed constraints a, b, and c, respectively). As is typical of longitudinal CFAs, residual covariances of the same items measured across lags are estimated and constrained to equality when separated by the same number of lags. Though not applicable to the models herein, we might call this constraint d. 
+
+The above four constraints all concern CFA measurement models (i.e., parameters used to identify the latent variables). The dynamic p-technique also entails that parameters in the structural model (i.e., parameters among latent variables and, when applicable, observed covariates) are equivalent across lags. Specifically, latent variable means for a given construct might be constrained to equality across lags (constraint e). Regressions between variables are also constrained to equality when separated by the same number of lags (constraint f). Due to the nature of the structural model in these examples, we will not impose these constraints. But see Little's text for details.
+
+For researchers unaccustomed with equality constraints such as these, we recommend first estimating an unconstrained model and then specifying the various equality constraints one at a time. Doing so may help clarify the implications of each constraint.
+
+Anyway, here's the model:
+
 ```{r}
 CFA_1_lag <- '
 # Loadings
+# The `l[i]*` portions constitute constraints a
+
 H0 =~ l1*A10 +   l2*A13 +   l3*A14 +   l4*A16 +   l5*A17
 H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
 
@@ -161,20 +176,9 @@ H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
 H0 ~~ 1*H0
 H1 ~~ NA*H1 # Because of the structural model, the resitual variance for H1 is freely estimated
 
-# residual variances
-A10 ~~ rv1*A10
-A13 ~~ rv2*A13
-A14 ~~ rv3*A14
-A16 ~~ rv4*A16
-A17 ~~ rv5*A17
-
-A10_1 ~~ rv1*A10_1
-A13_1 ~~ rv2*A13_1
-A14_1 ~~ rv3*A14_1
-A16_1 ~~ rv4*A16_1
-A17_1 ~~ rv5*A17_1
-
 # item intercepts
+# The `i[i]*` portions constitute constraints b
+
 A10 ~ i1*A10
 A13 ~ i2*A13
 A14 ~ i3*A14
@@ -187,6 +191,21 @@ A14_1 ~ i3*A14_1
 A16_1 ~ i4*A16_1
 A17_1 ~ i5*A17_1
 
+# residual variances
+# The `rv[i]*` portions constitute constraints c
+
+A10 ~~ rv1*A10
+A13 ~~ rv2*A13
+A14 ~~ rv3*A14
+A16 ~~ rv4*A16
+A17 ~~ rv5*A17
+
+A10_1 ~~ rv1*A10_1
+A13_1 ~~ rv2*A13_1
+A14_1 ~~ rv3*A14_1
+A16_1 ~~ rv4*A16_1
+A17_1 ~~ rv5*A17_1
+
 # cross-lag residual covariances
 A10 ~~ A10_1
 A13 ~~ A13_1
@@ -195,9 +214,11 @@ A16 ~~ A16_1
 A17 ~~ A17_1
 
 # Structural model
-H1 ~ H0
+H1 ~~ H0
 '
 ```
+
+We fit it, here.
 
 ```{r}
 fit.CFA_1_lag <- 
@@ -208,14 +229,19 @@ fit.CFA_1_lag <-
       std.lv = T)
 ```
 
+The summary:
+
 ```{r}
 summary(fit.CFA_1_lag, 
-        fit.measures = T)
+        fit.measures = T,
+        ci = T)
 ```
+
+The model fits the data great.
 
 ## Dynamic-p SEM
 
-Finally, we can use `Meds_1` to predict lag-1 ADHD values, `H1`, while still controlling for the previous day's ADHD values (i.e., `H1 ~ H0`).
+Finally, we can use `Meds_1` to predict lag-1 ADHD values, `H1`, while still controlling for the previous day's ADHD values (i.e., `H1 ~ H0`). The same measurement invariance constraints are imposed.
 
 ```{r}
 SEM_1_lag <- '
@@ -227,19 +253,6 @@ H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
 H0 ~~ 1*H0
 H1 ~~ NA*H1 # Because of the structural model, the resitual variance for H1 is freely estimated
 
-# residual variances
-A10 ~~ rv1*A10
-A13 ~~ rv2*A13
-A14 ~~ rv3*A14
-A16 ~~ rv4*A16
-A17 ~~ rv5*A17
-
-A10_1 ~~ rv1*A10_1
-A13_1 ~~ rv2*A13_1
-A14_1 ~~ rv3*A14_1
-A16_1 ~~ rv4*A16_1
-A17_1 ~~ rv5*A17_1
-
 # item intercepts
 A10 ~ i1*A10
 A13 ~ i2*A13
@@ -252,6 +265,19 @@ A13_1 ~ i2*A13_1
 A14_1 ~ i3*A14_1
 A16_1 ~ i4*A16_1
 A17_1 ~ i5*A17_1
+
+# residual variances
+A10 ~~ rv1*A10
+A13 ~~ rv2*A13
+A14 ~~ rv3*A14
+A16 ~~ rv4*A16
+A17 ~~ rv5*A17
+
+A10_1 ~~ rv1*A10_1
+A13_1 ~~ rv2*A13_1
+A14_1 ~~ rv3*A14_1
+A16_1 ~~ rv4*A16_1
+A17_1 ~~ rv5*A17_1
 
 # cross-lag residual covariances
 A10 ~~ A10_1
@@ -265,6 +291,8 @@ H1 ~ H0 + Meds_1
 '
 ```
 
+Fitting the model
+
 ```{r}
 fit.SEM_1_lag <- 
   cfa(SEM_1_lag, 
@@ -274,9 +302,12 @@ fit.SEM_1_lag <-
       std.lv = T)
 ```
 
+The summary:
+
 ```{r}
 summary(fit.SEM_1_lag, 
-        fit.measures = T)
+        fit.measures = T,
+        ci = T)
 ```
 
 Recall that the latent variables are in a standardized metric. Because `Meds_1` is a dummy variable, this puts it's coefficient in a Cohen's $d$ like metric.
