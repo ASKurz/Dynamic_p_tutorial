@@ -210,17 +210,18 @@ d %&gt;%
 </div>
 <div id="p-technique-cfa" class="section level2">
 <h2>P-technique CFA</h2>
-<p>Here we open our primary statistical package, <a href="https://cran.r-project.org/web/packages/lavaan/index.html">lavaan</a>.</p>
+<p>Here we open our primary statistical package, <a href="https://cran.r-project.org/web/packages/lavaan/index.html">lavaan</a>, which you might learn more about <a href="https://dornsife.usc.edu/assets/sites/210/docs/GC3/lavaan_tutorial.pdf">here</a> or <a href="http://lavaan.ugent.be/tutorial/index.html">here</a>.</p>
 <pre class="r"><code>library(lavaan)</code></pre>
 <div id="lag." class="section level3">
 <h3>0-lag.</h3>
-<p>The simplest starting place is a p-technique factor analysis. Using this approach, data</p>
+<p>The simplest starting place is a p-technique factor analysis. Using this approach, the model syntax looks much like that of a typical group-level CFA.</p>
 <pre class="r"><code>CFA_0_lag &lt;- '
 H =~ NA*A10 + A13 + A14 + A16 + A17
 
 # Standardize the variance
 H ~~ 1*H
 '</code></pre>
+<p>Here we fit the model.</p>
 <pre class="r"><code>fit.CFA_0_lag &lt;- 
   cfa(CFA_0_lag, 
       data = d,
@@ -228,6 +229,7 @@ H ~~ 1*H
       missing = &quot;ML&quot;)</code></pre>
 <pre><code>## Warning in lav_data_full(data = data, group = group, cluster = cluster, : lavaan WARNING: some cases are empty and will be ignored:
 ##   2 3 4 8 9 15 23 26 29 30 51 57 69 72 79 86</code></pre>
+<p>The summary, including the typical fit indices and 95% CIs for good measure:</p>
 <pre class="r"><code>summary(fit.CFA_0_lag, 
         fit.measures = T,
         ci = T)</code></pre>
@@ -365,8 +367,14 @@ H ~~ 1*H
 ## # ... with 94 more rows, and 8 more variables: A16 &lt;dbl&gt;, A17 &lt;dbl&gt;, Meds_1 &lt;dbl&gt;, A10_1 &lt;dbl&gt;,
 ## #   A13_1 &lt;dbl&gt;, A14_1 &lt;dbl&gt;, A16_1 &lt;dbl&gt;, A17_1 &lt;dbl&gt;</code></pre>
 <p>Now we have our lagged data, <code>d_lagged</code>, we are ready to specify and fit the 1-lag CFA model.</p>
+<p>Because of the way the data are copied to create a lagged dataset, model estimation involving multiple lags entails a number of specific constraints because the information across the lags is essentially equivalent (Little, 2013). The first few of those constraints concern factorial invariance. Typical group-level longitudinal CFAs require that analysts assess the extent to which the factors are invariant across time (for detailed discussions, see Brown, 2015; Little, 2013; Widaman, Ferrer, &amp; Conger, 2010). Factorial invariance across time suggests the variables of interest were reliably measured across time and that the constructs themselves were stable. For dynamic p-technique models, we expect “strict factorial invariance” (Little, 2013), which entails that the item loadings, item intercepts, and residual variances are equivalent across lags (herein termed constraints a, b, and c, respectively). As is typical of longitudinal CFAs, residual covariances of the same items measured across lags are estimated and constrained to equality when separated by the same number of lags. Though not applicable to the models herein, we might call this constraint d.</p>
+<p>The above four constraints all concern CFA measurement models (i.e., parameters used to identify the latent variables). The dynamic p-technique also entails that parameters in the structural model (i.e., parameters among latent variables and, when applicable, observed covariates) are equivalent across lags. Specifically, latent variable means for a given construct might be constrained to equality across lags (constraint e). Regressions between variables are also constrained to equality when separated by the same number of lags (constraint f). Due to the nature of the structural model in these examples, we will not impose these constraints. But see Little’s text for details.</p>
+<p>For researchers unaccustomed with equality constraints such as these, we recommend first estimating an unconstrained model and then specifying the various equality constraints one at a time. Doing so may help clarify the implications of each constraint.</p>
+<p>Anyway, here’s the model:</p>
 <pre class="r"><code>CFA_1_lag &lt;- '
 # Loadings
+# The `l[i]*` portions constitute constraints a
+
 H0 =~ l1*A10 +   l2*A13 +   l3*A14 +   l4*A16 +   l5*A17
 H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
 
@@ -374,20 +382,9 @@ H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
 H0 ~~ 1*H0
 H1 ~~ NA*H1 # Because of the structural model, the resitual variance for H1 is freely estimated
 
-# residual variances
-A10 ~~ rv1*A10
-A13 ~~ rv2*A13
-A14 ~~ rv3*A14
-A16 ~~ rv4*A16
-A17 ~~ rv5*A17
-
-A10_1 ~~ rv1*A10_1
-A13_1 ~~ rv2*A13_1
-A14_1 ~~ rv3*A14_1
-A16_1 ~~ rv4*A16_1
-A17_1 ~~ rv5*A17_1
-
 # item intercepts
+# The `i[i]*` portions constitute constraints b
+
 A10 ~ i1*A10
 A13 ~ i2*A13
 A14 ~ i3*A14
@@ -400,6 +397,21 @@ A14_1 ~ i3*A14_1
 A16_1 ~ i4*A16_1
 A17_1 ~ i5*A17_1
 
+# residual variances
+# The `rv[i]*` portions constitute constraints c
+
+A10 ~~ rv1*A10
+A13 ~~ rv2*A13
+A14 ~~ rv3*A14
+A16 ~~ rv4*A16
+A17 ~~ rv5*A17
+
+A10_1 ~~ rv1*A10_1
+A13_1 ~~ rv2*A13_1
+A14_1 ~~ rv3*A14_1
+A16_1 ~~ rv4*A16_1
+A17_1 ~~ rv5*A17_1
+
 # cross-lag residual covariances
 A10 ~~ A10_1
 A13 ~~ A13_1
@@ -408,8 +420,9 @@ A16 ~~ A16_1
 A17 ~~ A17_1
 
 # Structural model
-H1 ~ H0
+H1 ~~ H0
 '</code></pre>
+<p>We fit it, here.</p>
 <pre class="r"><code>fit.CFA_1_lag &lt;- 
   cfa(CFA_1_lag, 
       data = d_lagged,
@@ -418,10 +431,11 @@ H1 ~ H0
       std.lv = T)</code></pre>
 <pre><code>## Warning in lav_data_full(data = data, group = group, cluster = cluster, : lavaan WARNING: some cases are empty and will be ignored:
 ##   3 4 9 30</code></pre>
+<p>The summary:</p>
 <pre class="r"><code>summary(fit.CFA_1_lag, 
         fit.measures = T,
         ci = T)</code></pre>
-<pre><code>## lavaan (0.5-23.1097) converged normally after  51 iterations
+<pre><code>## lavaan (0.5-23.1097) converged normally after 102 iterations
 ## 
 ##                                                   Used       Total
 ##   Number of observations                           100         104
@@ -499,27 +513,25 @@ H1 ~ H0
 ## Regressions:
 ##                    Estimate  Std.Err  z-value  P(&gt;|z|) ci.lower ci.upper
 ##   A10 ~                                                                 
-##     A10       (i1)   -0.451    0.032  -13.899    0.000   -0.514   -0.387
+##     A10       (i1)   -0.546    0.032  -16.851    0.000   -0.610   -0.483
 ##   A13 ~                                                                 
-##     A13       (i2)   -0.288    0.051   -5.611    0.000   -0.389   -0.188
+##     A13       (i2)   -0.354    0.051   -6.895    0.000   -0.455   -0.254
 ##   A14 ~                                                                 
-##     A14       (i3)   -0.271    0.043   -6.248    0.000   -0.356   -0.186
+##     A14       (i3)   -0.603    0.043  -13.892    0.000   -0.688   -0.518
 ##   A16 ~                                                                 
-##     A16       (i4)    0.050    0.084    0.591    0.555   -0.115    0.214
+##     A16       (i4)   -0.478    0.084   -5.699    0.000   -0.642   -0.313
 ##   A17 ~                                                                 
-##     A17       (i5)    0.040    0.057    0.704    0.482   -0.071    0.151
+##     A17       (i5)   -0.106    0.057   -1.879    0.060   -0.217    0.005
 ##   A10_1 ~                                                               
-##     A10_1     (i1)   -0.451    0.032  -13.899    0.000   -0.514   -0.387
+##     A10_1     (i1)   -0.546    0.032  -16.851    0.000   -0.610   -0.483
 ##   A13_1 ~                                                               
-##     A13_1     (i2)   -0.288    0.051   -5.611    0.000   -0.389   -0.188
+##     A13_1     (i2)   -0.354    0.051   -6.895    0.000   -0.455   -0.254
 ##   A14_1 ~                                                               
-##     A14_1     (i3)   -0.271    0.043   -6.248    0.000   -0.356   -0.186
+##     A14_1     (i3)   -0.603    0.043  -13.892    0.000   -0.688   -0.518
 ##   A16_1 ~                                                               
-##     A16_1     (i4)    0.050    0.084    0.591    0.555   -0.115    0.214
+##     A16_1     (i4)   -0.478    0.084   -5.699    0.000   -0.642   -0.313
 ##   A17_1 ~                                                               
-##     A17_1     (i5)    0.040    0.057    0.704    0.482   -0.071    0.151
-##   H1 ~                                                                  
-##     H0                0.511    0.104    4.939    0.000    0.309    0.714
+##     A17_1     (i5)   -0.106    0.057   -1.879    0.060   -0.217    0.005
 ## 
 ## Covariances:
 ##                    Estimate  Std.Err  z-value  P(&gt;|z|) ci.lower ci.upper
@@ -533,6 +545,8 @@ H1 ~ H0
 ##    .A16_1             0.170    0.138    1.236    0.217   -0.100    0.441
 ##  .A17 ~~                                                                
 ##    .A17_1             0.220    0.105    2.092    0.036    0.014    0.426
+##   H0 ~~                                                                 
+##     H1                0.511    0.104    4.939    0.000    0.309    0.714
 ## 
 ## Intercepts:
 ##                    Estimate  Std.Err  z-value  P(&gt;|z|) ci.lower ci.upper
@@ -547,12 +561,12 @@ H1 ~ H0
 ##    .A16_1             2.025    0.072   28.015    0.000    1.884    2.167
 ##    .A17_1             2.526    0.080   31.407    0.000    2.368    2.684
 ##     H0                0.000                               0.000    0.000
-##    .H1                0.000                               0.000    0.000
+##     H1                0.000                               0.000    0.000
 ## 
 ## Variances:
 ##                    Estimate  Std.Err  z-value  P(&gt;|z|) ci.lower ci.upper
 ##     H0                1.000                               1.000    1.000
-##    .H1                0.739    0.182    4.066    0.000    0.383    1.095
+##     H1                1.000    0.183    5.470    0.000    0.642    1.359
 ##    .A10      (rv1)    0.584    0.064    9.184    0.000    0.459    0.708
 ##    .A13      (rv2)    0.148    0.096    1.536    0.125   -0.041    0.337
 ##    .A14      (rv3)    0.314    0.080    3.907    0.000    0.156    0.471
@@ -563,11 +577,12 @@ H1 ~ H0
 ##    .A14_1    (rv3)    0.314    0.080    3.907    0.000    0.156    0.471
 ##    .A16_1    (rv4)    0.896    0.070   12.742    0.000    0.758    1.034
 ##    .A17_1    (rv5)    0.748    0.086    8.735    0.000    0.580    0.916</code></pre>
+<p>The model fits the data great.</p>
 </div>
 </div>
 <div id="dynamic-p-sem" class="section level2">
 <h2>Dynamic-p SEM</h2>
-<p>Finally, we can use <code>Meds_1</code> to predict lag-1 ADHD values, <code>H1</code>, while still controlling for the previous day’s ADHD values (i.e., <code>H1 ~ H0</code>).</p>
+<p>Finally, we can use <code>Meds_1</code> to predict lag-1 ADHD values, <code>H1</code>, while still controlling for the previous day’s ADHD values (i.e., <code>H1 ~ H0</code>). The same measurement invariance constraints are imposed.</p>
 <pre class="r"><code>SEM_1_lag &lt;- '
 # Loadings
 H0 =~ l1*A10 +   l2*A13 +   l3*A14 +   l4*A16 +   l5*A17
@@ -576,19 +591,6 @@ H1 =~ l1*A10_1 + l2*A13_1 + l3*A14_1 + l4*A16_1 + l5*A17_1
 # LV variances
 H0 ~~ 1*H0
 H1 ~~ NA*H1 # Because of the structural model, the resitual variance for H1 is freely estimated
-
-# residual variances
-A10 ~~ rv1*A10
-A13 ~~ rv2*A13
-A14 ~~ rv3*A14
-A16 ~~ rv4*A16
-A17 ~~ rv5*A17
-
-A10_1 ~~ rv1*A10_1
-A13_1 ~~ rv2*A13_1
-A14_1 ~~ rv3*A14_1
-A16_1 ~~ rv4*A16_1
-A17_1 ~~ rv5*A17_1
 
 # item intercepts
 A10 ~ i1*A10
@@ -603,6 +605,19 @@ A14_1 ~ i3*A14_1
 A16_1 ~ i4*A16_1
 A17_1 ~ i5*A17_1
 
+# residual variances
+A10 ~~ rv1*A10
+A13 ~~ rv2*A13
+A14 ~~ rv3*A14
+A16 ~~ rv4*A16
+A17 ~~ rv5*A17
+
+A10_1 ~~ rv1*A10_1
+A13_1 ~~ rv2*A13_1
+A14_1 ~~ rv3*A14_1
+A16_1 ~~ rv4*A16_1
+A17_1 ~~ rv5*A17_1
+
 # cross-lag residual covariances
 A10 ~~ A10_1
 A13 ~~ A13_1
@@ -613,6 +628,7 @@ A17 ~~ A17_1
 # Structural model
 H1 ~ H0 + Meds_1
 '</code></pre>
+<p>Fitting the model</p>
 <pre class="r"><code>fit.SEM_1_lag &lt;- 
   cfa(SEM_1_lag, 
       data = d_lagged,
@@ -621,10 +637,11 @@ H1 ~ H0 + Meds_1
       std.lv = T)</code></pre>
 <pre><code>## Warning in lav_data_full(data = data, group = group, cluster = cluster, : lavaan WARNING: some cases are empty and will be ignored:
 ##   3 4 9 30</code></pre>
+<p>The summary:</p>
 <pre class="r"><code>summary(fit.SEM_1_lag, 
         fit.measures = T,
         ci = T)</code></pre>
-<pre><code>## lavaan (0.5-23.1097) converged normally after  58 iterations
+<pre><code>## lavaan (0.5-23.1097) converged normally after  63 iterations
 ## 
 ##                                                   Used       Total
 ##   Number of observations                           100         104
@@ -702,25 +719,25 @@ H1 ~ H0 + Meds_1
 ## Regressions:
 ##                    Estimate  Std.Err  z-value  P(&gt;|z|) ci.lower ci.upper
 ##   A10 ~                                                                 
-##     A10       (i1)   -0.594    0.032  -18.531    0.000   -0.657   -0.531
+##     A10       (i1)   -0.742    0.032  -23.124    0.000   -0.804   -0.679
 ##   A13 ~                                                                 
-##     A13       (i2)   -0.509    0.048  -10.538    0.000   -0.604   -0.415
+##     A13       (i2)   -0.611    0.048  -12.632    0.000   -0.705   -0.516
 ##   A14 ~                                                                 
-##     A14       (i3)   -0.460    0.041  -11.128    0.000   -0.541   -0.379
+##     A14       (i3)   -0.873    0.041  -21.105    0.000   -0.954   -0.792
 ##   A16 ~                                                                 
-##     A16       (i4)   -0.146    0.084   -1.743    0.081   -0.310    0.018
+##     A16       (i4)   -0.866    0.084  -10.337    0.000   -1.031   -0.702
 ##   A17 ~                                                                 
-##     A17       (i5)   -0.117    0.056   -2.096    0.036   -0.227   -0.008
+##     A17       (i5)   -0.362    0.056   -6.473    0.000   -0.471   -0.252
 ##   A10_1 ~                                                               
-##     A10_1     (i1)   -0.594    0.032  -18.531    0.000   -0.657   -0.531
+##     A10_1     (i1)   -0.742    0.032  -23.124    0.000   -0.804   -0.679
 ##   A13_1 ~                                                               
-##     A13_1     (i2)   -0.509    0.048  -10.538    0.000   -0.604   -0.415
+##     A13_1     (i2)   -0.611    0.048  -12.632    0.000   -0.705   -0.516
 ##   A14_1 ~                                                               
-##     A14_1     (i3)   -0.460    0.041  -11.128    0.000   -0.541   -0.379
+##     A14_1     (i3)   -0.873    0.041  -21.105    0.000   -0.954   -0.792
 ##   A16_1 ~                                                               
-##     A16_1     (i4)   -0.146    0.084   -1.743    0.081   -0.310    0.018
+##     A16_1     (i4)   -0.866    0.084  -10.337    0.000   -1.031   -0.702
 ##   A17_1 ~                                                               
-##     A17_1     (i5)   -0.117    0.056   -2.096    0.036   -0.227   -0.008
+##     A17_1     (i5)   -0.362    0.056   -6.473    0.000   -0.471   -0.252
 ##   H1 ~                                                                  
 ##     H0                0.366    0.090    4.084    0.000    0.190    0.541
 ##     Meds_1            1.559    0.210    7.421    0.000    1.147    1.971
