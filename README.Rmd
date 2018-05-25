@@ -1,6 +1,8 @@
 The Dynamic-p Technique with lavaan
 ======================================================
 
+The purpose of this project is to demonstrate how to fit a single-subject structural equation model within the dynamic p-technique framework. As discussed in the primary manuscript, of the recent introductions to and tutorials on the dynamic p-technique, we believe the method outlined in Little’s (2013) text is the most thorough and approachable for non-statistician behavioral researchers. Thus, the approach described herein is based primarily on Little’s text. Longitudinal structural equation models, such as those estimated with the dynamic p-technique, can become very complex.
+
 ```{r set-options, echo = FALSE, cache = FALSE}
 options(width = 100)
 ```
@@ -29,7 +31,7 @@ d <-
 
 ## Descriptive statistics
 
-If you wanted to get a sense of the distributions of the ADHD items, histograms might be handy.
+If you wanted to get a sense of the distributions of the ASRS items, histograms might be handy.
 
 ```{r, fig.width = 8, fig.height = 3.5}
 d %>% 
@@ -311,3 +313,11 @@ summary(fit.SEM_1_lag,
 ```
 
 Recall that the latent variables are in a standardized metric. Because `Meds_1` is a dummy variable, this puts it's coefficient in a Cohen's $d$ like metric.
+
+## References
+
+Brown, T. A. (2015). *Confirmatory factor analysis for applied research*. New York, NY: Guilford Press.
+
+Little, T. D. (2013). *Longitudinal structural equation modeling*. New York, NY: The Guilford Press. 
+
+Widaman, K. F., Ferrer, E., & Conger, R. D. (2010). Factorial invariance within longitudinal structural equation models: Measuring the same construct across time. *Child Development Perspectives, 4*, 10-18. doi:10.1111/j.1750-8606.2009.00110.x
