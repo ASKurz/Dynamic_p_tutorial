@@ -1,3 +1,8 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
 The Dynamic-p Technique with lavaan
 ======================================================
 
@@ -18,16 +23,9 @@ d <- read_excel("Lindsey.xlsx")
 glimpse(d)
 ```
 
-Note how the data are in the long format. That is, although we have one participant, "Lindsey", her data are presented in 103 rows, each corresponding to a different calendar day. 
+In this document, we'll use functions and syntax from the [tidyverse](https://www.tidyverse.org), which you might learn about [here](http://r4ds.had.co.nz/transform.html) or [here](http://style.tidyverse.org).
 
-The variable for calendar days, `Date`, is descriptively useful, but cumbersome for formal statistical analysis. Here we'll want to augment the data slightly by adding a numeric `day` index, ranging from 0 to 102.
-
-```{r}
-d <-
-  d %>% 
-  mutate(day = 1:n()-1) %>% 
-  select(day, everything())
-```
+Note how the data are in the long format. That is, although we have one participant, "Lindsey", her data are presented in 103 rows, each corresponding to a different calendar day.
 
 ## Descriptive statistics
 
@@ -39,7 +37,7 @@ d %>%
   gather(item, rating) %>% 
   
   ggplot(aes(x = rating)) +
-  geom_histogram(binwidth = 1, fill = "chartreuse", color = "grey92", size = 1/5) +
+  geom_histogram(binwidth = 1, fill = "chartreuse2", color = "grey92", size = 1/5) +
   theme(panel.grid = element_blank()) +
   facet_wrap(~item, ncol = 4)
 ```
@@ -128,20 +126,23 @@ summary(fit.CFA_0_lag,
 
 ### 1-lag.
 
-Before we proceed to fit a dynamic-p CFA, we'll need to lag our data file. First, we'll add a row to the end of the data. Because this row corresponds to `Date = "2016-05-11"`, a day for which we don't have any information other than it was a Wednesday, we'll insert NAs into most of the columns.
+#### First, we need to process the data a bit.
+
+Before we proceed to fit a dynamic-p CFA, we'll need to lag our data file. In short, a lag is the difference from one measuremet occasion to another. Since these are daily-diary data, each lag is a day in separation. 
+
+Before we lag the data file, we'll add a row to the end of the data. Because this row corresponds to `Date = "2016-05-11"`, a day for which we don't have any information other than it was a Wednesday, we'll insert NAs into most of the columns.
 
 ```{r}
 tail(d)
 
 d_lagged <-
   d %>% 
-  add_row(., day = 103, Date = "2016-05-11 00:00:00", 
-          Mon = 0, Tues = 0, Wed = 1, Thur = 0, Fri = 0, Sat = 0, Sun = 0, 
+  add_row(., Date = "2016-05-11 00:00:00", 
           Meds = NA, 
           A10 = NA, A13 = NA, A14 = NA, A16 = NA, A17 = NA)
 ```
 
-With the `lag()` function, we'll add lagged values for our `Meds` dummy and our ASRS items. For each of the lagged columns, we'll add the suffix `_1` to help differentiate them from the original columns.
+With the `lag()` function, we'll add lagged values for our `Meds` dummy and our ASRS items. For each of the lagged columns, we'll add the suffix `_1` to help differentiate them from the original columns. 
 
 ```{r}
 (
@@ -156,7 +157,11 @@ With the `lag()` function, we'll add lagged values for our `Meds` dummy and our 
   )
 ```
 
-Now we have our lagged data, `d_lagged`, we are ready to specify and fit the 1-lag CFA model.
+In principle, we could add more lags. With the present set-up, you might consider the original columns as depicting the data at *lag 0* and the new lagged columns as depicting the data at *lag 1*. Conceptually, lag 0 corresponds to "today" and lag 1 to "tomorrow." That is, the 1-lag data structure for daily-diary data allows to ask questions about how today will predict or influence tomorrow. If this is still confusing, see Little's (2013) text. 
+
+#### We digress into measurement theory.
+
+Now we have our lagged data, `d_lagged`, we are almost ready to specify and fit the 1-lag CFA model.
 
 Because of the way the data are copied to create a lagged dataset, model estimation involving multiple lags entails a number of specific constraints because the information across the lags is essentially equivalent (Little, 2013). The first few of those constraints concern factorial invariance. Typical group-level longitudinal CFAs require that analysts assess the extent to which the factors are invariant across time (for detailed discussions, see Brown, 2015; Little, 2013; Widaman, Ferrer, & Conger, 2010). Factorial invariance across time suggests the variables of interest were reliably measured across time and that the constructs themselves were stable. For dynamic p-technique models, we expect "strict factorial invariance" (Little, 2013), which entails that the item loadings, item intercepts, and residual variances are equivalent across lags (herein termed constraints a, b, and c, respectively). As is typical of longitudinal CFAs, residual covariances of the same items measured across lags are estimated and constrained to equality when separated by the same number of lags. Though not applicable to the models herein, we might call this constraint d. 
 
@@ -164,7 +169,9 @@ The above four constraints all concern CFA measurement models (i.e., parameters 
 
 For researchers unaccustomed with equality constraints such as these, we recommend first estimating an unconstrained model and then specifying the various equality constraints one at a time. Doing so may help clarify the implications of each constraint.
 
-Anyway, here's the model:
+#### Finally, we're ready to specify and estimate the model.
+
+Here's the model:
 
 ```{r}
 CFA_1_lag <- '
