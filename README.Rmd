@@ -1,7 +1,7 @@
 ---
 output:
-  pdf_document: default
-  html_document: default
+  # pdf_document: default
+  github_document: default
 urlcolor: blue
 ---
 The P-Technique with lavaan
