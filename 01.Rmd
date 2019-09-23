@@ -1,0 +1,365 @@
+---
+title: '01'
+date: '`r format(Sys.Date())`'
+output:
+  html_document:
+    df_print: paged
+---
+
+## Version 0.0.1
+
+## tl;dr
+
+If you would like to learn how to analyze single-case and small-$n$ data using multivariate statistics, keep reading. Here in part I, we'll say a few words about why social scientists might do such a thing.
+
+## Keep your population straight.
+
+If your graduate education was like mine, you passed through a couple/few courses in statistics. In those courses, I suspect you learned how one might divide statistics into two basic kinds: descriptive and inferential. The former gives us summaries about the data in hand (e.g., counts, averages, variances) and the latter gives us a sense about what our data can tell us about the cases not captured in our data. We usually refer to those other cases as a *population*. For example, here's how Danielle Navarro defined the term in her free introductory text, [*Learning statistics with R*](https://learningstatisticswithr.com/lsr-0.6.pdf):
+
+> A sample is a concrete thing. You can open up a data file, and there's the data from your sample. A **population**, on the other hand, is a more abstract idea. It refers to the set of all possible people, or all possible observations, that you want to draw conclusions about, and is generally *much* bigger than the sample. (p. 302, *emphasis* in the original).
+
+If you're in the social sciences, you probably think of populations as referring to groupings of people, or perhaps all of mankind as the human population. But if you followed Navarro's definition carefully, you noticed populations can be of groupings of people **or** of "all possible observations" within a given person. This second notion of populations is crucial. We'll return to it later on. But first, we have to grapple with validity.
+
+## Validity talk
+
+This business of samples and populations get's intimately connected with validity, particularly external validity. Returning to Navarro, we read
+
+> **External validity** relates to the **generalisability** of your findings. That is, to what extent do you expect to see the same pattern of results in "real life" as you saw in your study. To put it a bit more precisely, any study that you do in psychology will involve a fairly specific set of questions or tasks, will occur in a specific environment, and will involve participants that are drawn from a particular subgroup. So, if it turns out that the results don't actually generalise to people and situations beyond the ones that you studied, then what you've got is a lack of external validity. (p. 23, **emphasis** in the original)
+
+Given a well-designed and well-executed study, we hope the data from a given sample will extend well to the intended population. To the extent that we believe it does, we congratulate ourselves with our good external validity. Other types of validity social scientists often fret about are internal validity, face validity, ecological validity, and construct validity. Navarro covered all those in her text. You can find more detailed coverage in Shadish, Cook, and Campbell's (2002) text, [*Experimental and quasi-experimental designs for generalized causal inference*](https://psycnet.apa.org/record/2002-17373-000). I won't belabor them further.
+
+It turns out there are other angles from which we might consider validity. Depending on the nature of your research, these could be a big deal and, unfortunately, you might not have fully grappled with them in your standard graduate coursework. Maybe you did and just forgot. At any rate, the two big ones relevant to this blog series are **Simpson's paradox** and the **ecological fallacy**. 
+
+### Simpson's paradox.
+
+Simpson's paradox officially made its way into the literature in [this 1951 paper](http://math.bme.hu/~marib/bsmeur/simpson.pdf) by Simpson. Rather than define it outright, I'm going to demonstrate it with a classic example. The data come from the 1973 University of California, Berkeley, graduate admissions. Based on a simple breakdown of the admission rates, 44% of the men who applied were admitted. In contrast, only 35% of the women who applied were admitted. The university was accused of sexism and the issue made its way into the courts. 
+
+However, when statisticians looked more closely at the data, it became apparent those data were not compelling evidence of sexism. To see why, we'll want to get into the data, ourselves. The admissions rates for the six largest departments have made their way into the peer-reviewed literature ([Bickel, Hammel, & O'Connell, 1975](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.394.9241&rep=rep1&type=pdf)), into many textbooks (e.g., Navarro's), and are available in **R** as the built-in data set `UCBAdmissions`. Here we'll call them, convert the data into a tidy format [^1], and add a variable. 
+
+```{r, warning = F, message = F}
+library(tidyverse)
+
+d <-
+  UCBAdmissions %>% 
+  as_tibble() %>% 
+  pivot_wider(id_cols = c(Dept, Gender),
+              names_from = Admit, 
+              values_from = n) %>% 
+  mutate(total = Admitted + Rejected)
+
+head(d)
+```
+
+The identities of the departments have been anonymized, so we're stuck with referring to them as A through F. Much like with the overall rates for graduate admissions, it appears that the admission rates for the six anonymized departments in the `UCBAdmissions` data show higher a admission rate for men.
+
+```{r}
+d %>% 
+  group_by(Gender) %>% 
+  summarise(percent_admitted = (100 * sum(Admitted) / sum(total)) %>% round(digits = 1))
+```
+
+However, the plot thickens when we break the data down by department.
+
+```{r, fig.width = 8, fig.height = 4}
+d %>%  
+  mutate(dept = str_c("department ", Dept)) %>% 
+  pivot_longer(cols = Admitted:Rejected,
+               names_to = "admit",
+               values_to = "n") %>% 
+  
+  ggplot(aes(x = Gender, y = n, fill = admit)) +
+  geom_col(position = "dodge") +
+  scale_fill_viridis_d(NULL, option = "A", end = .6) +
+  xlab(NULL) +
+  theme(panel.grid = element_blank()) +
+  facet_wrap(~dept)
+```
+
+The problem with our initial analysis is it didn't take into account how different departments might admit men/women at different rates. We also failed to consider whether men and women applied to those different departments at different rates. Take departments A and B. Both admitted the majority of applicants, regardless of gender. Now look at departments E and F. The supermajorities of applicants were rejected, both for men and women Also notice that whereas the departments where the supermajority of applicants were men (i.e., departments A and B) had generous admission rates, the departments with the largest proportion of women applicants (i.e., departments C and E) had rather high rejection rates. 
+
+It can be hard to juggle all this in your head at once, even with the aid of our figure. Let's look at the data in a different way. This time we'll summarize the admission rates in a probability metric where the probability of admission is `n / total` (i.e., the number of successes divided by the total number of trials). We'll compute those probabilities while grouping by `Gender` and `Dept`.
+
+```{r, fig.width = 6, fig.height = 3}
+d %>%
+  mutate(p = Admitted / total) %>% 
+  
+  ggplot(aes(x = Dept, y = p)) +
+  geom_hline(yintercept = .5, color = "white") +
+  geom_point(aes(color = Gender, size = total),
+             position = position_dodge(width = 0.3)) +
+  scale_color_manual(NULL, values = c("red3", "blue3")) +
+  scale_y_continuous("admission probability", limits = 0:1) +
+  xlab("department") +
+  theme(panel.grid = element_blank())
+```
+
+Several things pop out. For $5/6$ of the departments (i.e., all but A), the admission probabilities were very similar for men and women--sometimes slightly higher for women, sometimes slightly higher for men. We also see a broad range overall admission rates across departments. Note how the dots are sized based on the `total` number of applications, by `Gender` and `Dept`. Hopefully those sizes show how women disproportionately applied to departments with low overall admission probabilities. Interestingly, the department with the largest gender bias was A, which showed a bias towards admitting women at *higher* rates than men.
+
+More formally, the paradox Simpson wrote about is that the simple association between two variables can disappear or even change sign when it is conditioned on a relevant third variable. The relevant third variable is typically a grouping variable. In the Berkeley admissions example, the seemingly alarming association between graduate admissions and gender disappeared when conditioned on department. If you're still jarred by this, Navarro covered this in the opening chapter of her text. Richard McElreath covered it more extensively in chapters 10 and 13 of his (2015) text, [*Statistical Rethinking*](https://xcelab.net/rm/statistical-rethinking/). I've also worked through a similar example of Simpson's paradox from the more recent literature, [here](https://bookdown.org/content/1850/adventures-in-covariance.html#summary-bonus-another-berkley-admissions-data-like-example).
+
+### The ecological fallacy.
+
+The ecological fallacy is closely related to Simpson's paradox. The term stems from a [1950 paper](https://www.jstor.org/stable/2087176?origin=crossref&seq=1#page_scan_tab_contents) by William S. Robinson. The central point of the paper can be summed up in this quote: "There need be no correspondence between the individual correlation and the ecological correlation" (p. 354) [^2]. Robinson's article framed his argument in terms of correlations. In more general and contemporary terms, his insight was that results from between-person analyses will not necessarily match up with results from within-person analyses. When we assume the results from a between-person analysis will tell us about within-person processes, we commit the ecological fallacy.
+
+The examples Robinson used to highlight his points in his original article have not aged well. Happily, methodologist Ellen Hamaker has given about as good an example of the ecological fallacy as I've seen. We'll quote from her (2012) chapter, [*Why researchers should think "within-person": A paradigmatic rationale*](http://www.geo.uzh.ch/~screde/share/ReadingGroup/Hamaker-12.pdf), in bulk:
+
+> Suppose we are interested in the relationship between typing speed (i.e., number of words typed per minute) and the percentage of typos that are made. If we look at the cross-sectional relationship (i.e., the population level), we may well find a negative relationship, in that people who type faster make fewer mistakes (this may be reflective of the fact that people with better developed typing skills and more experience both type faster and make fewer mistakes). (p. 44)
+
+Based on a figure in Hamaker's chapter, that cross-sectional relationship might look something like this.
+
+```{r, echo = F}
+# define the mean structure
+
+n     <- 50  # choose the n
+
+b0    <-  0  # average morning wait time
+b1    <-  0  # average difference afternoon wait time
+sd_b0 <-  1  # std dev in intercepts
+sd_b1 <-  1  # std dev in slopes
+r     <- -.8  # correlation between intercepts and slopes
+
+# the next three lines of code simply combine the terms, above
+mu     <- c(b0, b1)
+sigma  <- matrix(c(sd_b0, r, 
+                   r, sd_b1), ncol = 2)
+set.seed(1)
+m <-
+  MASS::mvrnorm(n, mu, sigma) %>% 
+  data.frame() %>% 
+  set_names("x0", "y0") %>% 
+  arrange(x0) %>% 
+  mutate(i = 1:n) %>% 
+  tidyr::expand(nesting(i, x0, y0),
+                j = 1:n) 
+
+# Define the residual variance/covariance structure
+
+sigma  <- matrix(c(sd_b0, .3, 
+                   .3, sd_b1), ncol = 2)
+set.seed(1)
+r <-
+  MASS::mvrnorm(n * n, mu, sigma) %>% 
+  data.frame() %>% 
+  set_names("xr", "yr") %>% 
+  mutate_all(.funs = ~. * .25)
+
+# Combine the two and save.
+
+d <-
+  bind_cols(m, r) %>% 
+  mutate(x = x0 + xr,
+         y = y0 + yr) 
+```
+
+```{r, fig.height = 3}
+d %>% 
+  filter(j == 1) %>% 
+  
+  ggplot(aes(x = x, y = y)) +
+  geom_point(alpha = 2/3) +
+  stat_ellipse(size = 1/4) +
+  coord_equal(xlim = -3:3,
+              ylim = -3:3) +
+  labs(x = "typing speed", y = "number of typos") +
+  theme(panel.grid = element_blank())
+```
+
+I'm not going to show you how I made these data just yet. It'd break up the flow. For the curious, the statistical formula and code are at the end of the post. I should point out, though, that data are presented in a $z$-score metric. Anyway, here's the cross-sectional correlation.
+
+```{r}
+d %>% 
+  filter(j == 1) %>% 
+  summarise(correlation_between_participants = cor(x, y))
+```
+
+In the chapter, Hamaker continued her case.
+
+> If we were to generalize this result to the within-person level, we would conclude that if a particular person types faster, he or she will make fewer mistakes. Clearly, this is not what we expect: In fact, we are fairly certain that for any particular individual, the number of typos will increase if he or she tries to type faster. This implies a positive--rather than a negative--relationship at the within-person level. (p. 44)
+
+The simulated data I just showed were from 50 participants at one measurement occasion. However, the full data set contains 50 measurement occasions for each of the 50 participants. In the next plot, we'll show the all 50 measurement occasions for just 5 participants. The $n$ is reduced in the plot to avoid cluttering.
+
+```{r, fig.height = 3}
+d %>% 
+  filter(i %in% c(1, 10, 25, 47, 50)) %>% 
+  mutate(i = factor(i)) %>% 
+  
+  ggplot() +
+  geom_point(aes(x = x, y = y, color = i),
+             size = 1/3) +
+  stat_ellipse(aes(x = x, y = y, color = i),
+               size = 1/5) +
+  geom_point(data = d %>% 
+               filter(j == 1 &
+                        i %in% c(1, 10, 25, 47, 50)),
+             aes(x = x0, y = y0),
+             size = 2, color = "grey50") +
+  scale_color_viridis_d(option = "B", begin = .25, end = .85) +
+  coord_equal(xlim = -3:3,
+              ylim = -3:3) +
+  labs(x = "typing speed", y = "number of typos") +
+  theme(panel.grid = element_blank(),
+        legend.position = "none")
+```
+
+The points are colored by participant. The gray points in each data cloud are the participant-level means. Although we still see a clear negative relationship between participants, we now also see a mild positive relationship within participants. Here is the distribution of those correlations across participants.
+
+```{r, fig.height = 2.25, fig.width = 3}
+d %>% 
+  group_by(i) %>% 
+  summarise(r = cor(x, y) %>% round(digits = 2)) %>% 
+  
+  ggplot(aes(x = r)) +
+  geom_histogram(binwidth = .1) +
+  xlab("correlations within participants") +
+  theme(panel.grid = element_blank())
+```
+
+Hopefully this gives you a sense of how meaningless the question What is the correlation between typing speed and typo rates? is. The question is poorly specified because it makes no distinction between the between- and within-person frameworks. As it turns out, the answer could well be different depending on which one you care about and which one you end up studying. I suspect poorly-specified questions of this kind are scattered throughout the literature. For example, I’m a clinical psychologist. Have you ever heard a clinical psychologist talk about how highly anxiety is correlated with depression? And yet much [most] of that evidence is cross-sectional. But what about *within* specific people? Do you really believe anxiety and depression are highly-correlated in all people? More cross-sectional analyses will not answer that question.
+
+Our typing data are is just one example of how between- and within-person analyses can differ. To see Hamaker walk out the example herself, check out her [talk on the subject](https://www.youtube.com/watch?v=RnbsXfE2R9g) from a few years ago. I think you'll find her an engaging speaker. To close this section out, it's worth considering the Conclusion section from Robinson's original (1950) paper in full:
+
+> The relation between ecological and individual correlations which is discussed in this paper provides a definite answer as to whether ecological correlations can validly be used as substitutes for individual correlations. They cannot. While it is theoretically possible for the two to be equal, the conditions under which this can happen are far removed from those ordinarily encountered in data. From a practical standpoint, therefore, the only reasonable assumption is that an ecological correlation is almost certainly not equal to its corresponding individual correlation.
+>
+> I am aware that this conclusion has serious consequences, and that its effect appears wholly negative because it throws serious doubt upon the validity of a number of important studies made in recent years. The purpose of this paper will have been accomplished, however, if it prevents the future computation of meaningless correlations and stimulates the study of similar problems with the use of meaningful correlations between the properties of individuals. (p. 357)
+
+### This validity stuff is hard.
+
+Let's do a brief recap. With Simpson's paradox, we learned that the apparent association between two variables can be attenuated after conditioning on a relevant third variable. In the literature, that third variable is often a grouping variable like gender.
+
+The ecological fallacy demonstrated something similar, but from a different angle. That literature on that topic showed us that the results from a between-person analysis will not necessarily inform us of within-person processes. The converse is logically true, too. Indeed, the ecological fallacy is something of a special case of Simpson's paradox. With the ecological fallacy, the grouping variable is participant id with, when accounted for, yields a different level of analysis [^3].
+
+With both validity threats, the results of an analysis can attenuate, go to zero, or even switch sign. With the Berkeley example, the relation went to zero. With our simulated data inspired by Hamaker's example, the effect size went form a large positive correlation to bundle small/medium *negative* correlations. These are non-trivial changes.
+
+If at this point you find yourself fatigued and your head hurts a little, don't worry. You're probably normal. In a series of experiments, [Fiedler, Walther, Freytag, and Nickel (2003)](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.839.8878&rep=rep1&type=pdf) showed it's quite normal to struggle with these concepts. For more practice, check out Kievit, Frankenhuis, Waldorp, and Borsboom's nice (2013) paper, [*Simpson's paradox in psychological science: a practical guide*](https://www.frontiersin.org/articles/10.3389/fpsyg.2013.00513).
+
+### Though hard, this is not new.
+
+Depending on the nature of your training, this may or may not be new. Regardless, the dates in the original citations for Simpson’s paradox and the ecological fallacy indicate at least some in the field have known about them for decades. It's worth pointing out some other examples. 
+
+
+
+
+## Afterward: How might one simulate those typing speed data?
+
+In those simulated data, we generically named the "typing speed" variable `x` and the "error count" variable `y`. If you let the index $i$ stand for the $i^\text{th}$ case and $j$ stand for the $j^\text{th}$ measurement occasion, the data-generating formula is as follows:
+
+$$
+\begin{align*}
+x_{ij}, y_{ij} & \sim 
+
+\text{MVNormal} 
+\begin{pmatrix}
+
+\begin{bmatrix} 
+\mu_{i}^x \\ \mu_{i}^y
+\end{bmatrix},
+
+\begin{bmatrix} 
+\sigma_{i}^x \\ \sigma_{i}^y
+\end{bmatrix}
+
+\end{pmatrix} \\
+
+\mu_i^x & = \beta_{0_i}^x \\
+\mu_i^y & = \beta_{0_i}^y \\
+
+\begin{bmatrix} 
+\beta_{0_i}^x \\ \beta_{0_i}^y
+\end{bmatrix} & \sim \text{MVNormal}
+
+\begin{pmatrix} 
+\begin{bmatrix} 
+\beta_0^x \\ \beta_0^y
+\end{bmatrix}, 
+
+\begin{bmatrix} 
+1 & .8 \\ .8 & 1
+\end{bmatrix}
+
+\end{pmatrix} \\
+
+\begin{bmatrix} 
+\sigma_{i}^x \\ \sigma_{i}^y
+\end{bmatrix} & \sim \text{MVNormal}
+
+\begin{pmatrix} 
+\begin{bmatrix} 
+0 \\ 0
+\end{bmatrix}, 
+
+\begin{bmatrix} 
+0.2 & -.2 \\ -.2 & 0.2
+\end{bmatrix}
+
+\end{pmatrix}
+
+\end{align*}
+$$
+
+For simplicity, $\beta_0^x$ and $\beta_0^y$ were fixed to zero. Note I'm using the $\sigma$ parameterization instead of the $\sigma^2$ parameterization. In words, this is a bivariate intercepts-only multilevel model.
+
+The approach I used to generate the data is an extension of the one I used in my project recoding McElrath's (2015) text. You can find the original code, [here](https://bookdown.org/content/1850/adventures-in-covariance.html#varying-slopes-by-construction). There are two big changes to the original. First, setting the random effects for the mean structure to a $z$-score metric simplified that part of the code quite a bit. Second, I defined the residuals, which were correlated, in a separate data object from the one containing the mean structure. In the final step, we combined the two and simulated the `x` and `y` values.
+
+First, define the mean structure.
+
+```{r, eval = F}
+n     <- 50  # choose the n
+
+b0    <-  0  # average morning wait time
+b1    <-  0  # average difference afternoon wait time
+sd_b0 <-  1  # std dev in intercepts
+sd_b1 <-  1  # std dev in slopes
+r     <- -.8  # correlation between intercepts and slopes
+
+# the next three lines of code simply combine the terms, above
+mu     <- c(b0, b1)
+sigma  <- matrix(c(sd_b0, r, 
+                   r, sd_b1), ncol = 2)
+set.seed(1)
+m <-
+  MASS::mvrnorm(n, mu, sigma) %>% 
+  data.frame() %>% 
+  set_names("x0", "y0") %>% 
+  arrange(x0) %>% 
+  mutate(i = 1:n) %>% 
+  tidyr::expand(nesting(i, x0, y0),
+                j = 1:n) 
+```
+
+Second, define the residual structure.
+
+```{r, eval = F}
+sigma  <- matrix(c(sd_b0, .3, 
+                   .3, sd_b1), ncol = 2)
+set.seed(1)
+r <-
+  MASS::mvrnorm(n * n, mu, sigma) %>% 
+  data.frame() %>% 
+  set_names("xr", "yr") %>% 
+  mutate_all(.funs = ~. * .25)
+```
+
+Combine the two and save.
+
+```{r, eval = F}
+d <-
+  bind_cols(m, r) %>% 
+  mutate(x = x0 + xr,
+         y = y0 + yr) 
+```
+
+Because we used the `set.seed()` function before each simulation step, you will be able to reproduce the results exactly.
+
+## Session info
+
+```{r}
+sessionInfo()
+```
+
+## Footnotes
+
+[^1]: Walking out the definition of *tidy data* is beyond the scope of this post. It's connected to the work of data scientist [Hadley Wickham](http://hadley.nz), in particular, and the ethos behind the collection of **R** packages called the [**tidyverse**](https://www.tidyverse.org), more generally. My **R**code tends to follow the [tidyverse style](https://style.tidyverse.org). If you're new these ideas, it'll help if you familiarize yourself with them a bit. For an introduction to the notion of tidy data, Wickham's recent talk, [*Data visualization and data science*](https://www.youtube.com/watch?v=9YTNYT1maa4), is a fine place to start.
+
+[^2]: The page numbers in this section might could use some clarifications. For all the Robinson quotes in this post, the page numbers are based on the original 1950 publication. I should point out that though you might be able to get a PDF of the original 1950 paper, it can be a bit of a pain in the neck. If you do a casual online search, it's more likely you'll come across [this 2009 reprint of the paper](https://academic.oup.com/ije/article/38/2/337/658252). To the best of my knowledge, the reprint is faithful. However, if that's the one you're using, the page numbers won't match up to the ones I cited. Happily, the article's a short one and any page-number mismatches shouldn't slow you down too much.
+
+[^3]: Some readers may see the multilevel model lurking in the shadows, here. You're right. When we think of the relationship between Simpson's paradox and the ecological fallacy, I find it particularly instructive to recall how the multilevel model can be thought of as a high-rent interaction model. I'm not making that point directly in the prose, yet, for the sake of keeping the content more general and conceptual. But yes, the multilevel model will move out of the shadows into the light of day as we go further along.
